@@ -15,8 +15,11 @@ class Rotation:
 
     @classmethod
     def parse_rotation(cls, line: str) -> Self:
+        if len(line) < 2:
+            raise ValueError
+
         steps = int(line[1:])
-        direction = Direction.RIGHT if line.startswith('R') else Direction.LEFT
+        direction = Direction.LEFT if line.startswith("L") else Direction.RIGHT
         return cls(steps, direction)
 
 
@@ -29,6 +32,29 @@ class DialConfig:
 class Dial:
     loc: int
     config: DialConfig = dataclasses.field(default_factory=DialConfig)
+
+    def rotate_tracking_passes(self, rotation: Rotation) -> int:
+        passes = self.calculate_zero_passes(rotation)
+        self.rotate(rotation)
+        return passes
+
+    def calculate_zero_passes(self, rotation: Rotation) -> int:
+        start = self.loc
+        steps = rotation.steps
+
+        distance_to_zero = (
+            start or self.config.total
+            if rotation.direction == Direction.LEFT
+            else self.config.total - start
+        )
+
+        passes = 0
+        while steps >= distance_to_zero:
+            passes += 1
+            steps -= distance_to_zero
+            distance_to_zero = self.config.total
+
+        return passes
 
     def rotate(self, rotation: Rotation):
         steps = rotation.steps
@@ -43,17 +69,15 @@ class Dial:
 def run() -> int:
     password = 0
     dial = Dial(50)
-    with open('input.txt') as f:
+    with open("input.txt") as f:
         for line in f.readlines():
             if not line.strip():
                 continue
             rotation = Rotation.parse_rotation(line.strip())
-            dial.rotate(rotation)
-            if dial.points_to_zero():
-                password += 1
+            password += dial.rotate_tracking_passes(rotation)
 
     return password
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(run())
