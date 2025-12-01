@@ -24,14 +24,9 @@ class Rotation:
 
 
 @dataclasses.dataclass
-class DialConfig:
-    total: int = 100
-
-
-@dataclasses.dataclass
 class Dial:
     loc: int
-    config: DialConfig = dataclasses.field(default_factory=DialConfig)
+    size: int
 
     def rotate_tracking_passes(self, rotation: Rotation) -> int:
         passes = self.calculate_zero_passes(rotation)
@@ -43,16 +38,16 @@ class Dial:
         steps = rotation.steps
 
         distance_to_zero = (
-            start or self.config.total
+            start or self.size
             if rotation.direction == Direction.LEFT
-            else self.config.total - start
+            else self.size - start
         )
 
         passes = 0
         while steps >= distance_to_zero:
             passes += 1
             steps -= distance_to_zero
-            distance_to_zero = self.config.total
+            distance_to_zero = self.size
 
         return passes
 
@@ -60,7 +55,7 @@ class Dial:
         steps = rotation.steps
         if rotation.direction == Direction.LEFT:
             steps *= -1
-        self.loc = (self.config.total + self.loc + steps) % self.config.total
+        self.loc = (self.size + self.loc + steps) % self.size
 
     def points_to_zero(self) -> bool:
         return self.loc == 0
@@ -68,7 +63,7 @@ class Dial:
 
 def run() -> int:
     password = 0
-    dial = Dial(50)
+    dial = Dial(50, 100)
     with open("input.txt") as f:
         for line in f.readlines():
             if not line.strip():
