@@ -5,8 +5,6 @@ from typing import Iterable, List, Optional, Self
 def list_to_int(digits: Iterable) -> int:
     total = 0
     for i in digits:
-        if i > 10:
-            continue
         total *= 10
         total += int(i)
 
@@ -39,18 +37,6 @@ class ListNode:
 
     def __repr__(self):
         return f"ListNode({self.value})"
-
-
-def add_node_before(tail: ListNode, node: ListNode):
-    tail.prev.next = node
-    node.prev = tail.prev
-    tail.prev = node
-    node.next = tail
-
-
-def remove_node(node: ListNode):
-    node.prev.next = node.next
-    node.next.prev = node.prev
 
 
 @dataclasses.dataclass(frozen=True)
@@ -119,36 +105,47 @@ class JoltageCalculator:
         # This greedy algorithm runs in O(n) time
         # It iterates across the bank, maintaining a linked list of the digits, and a cache of potentially out of order digits
 
-        # sentinel node at head and tail
-        head = ListNode(99)
-        tail = ListNode(99)
-        head.next = tail
-        tail.prev = head
+        if not bank.cells:
+            return 0
+
+        head = ListNode(bank.cells[0])
+        tail = head
 
         # cache which nodes have a value less than their follower
         removable_cells = []
-
-        for i, cell in enumerate(bank.cells):
+        count = 1
+        for cell in bank.cells[1:]:
             # insert new battery at the end
-            node = ListNode(cell)
-            add_node_before(tail, node)
-            if node.prev.value < node.value:
-                removable_cells.append(node.prev)
+            tail.next = ListNode(cell)
+            tail.next.prev = tail
+            tail = tail.next
+            if tail.prev.value < tail.value:
+                removable_cells.append(tail.prev)
 
-            # don't remove any until we have a full set of digits
-            if i < num_to_activate:
+            # don't remove any until we have a full set of digits, but also don't count each iteration
+            if count < num_to_activate:
+                count += 1
                 continue
 
             # remove the first node that is less than a following node
             try:
                 to_remove = removable_cells.pop(0)
-                remove_node(to_remove)
-                # Check if previous node can now be removed
-                if to_remove.prev.value < to_remove.next.value:
-                    removable_cells.insert(0, to_remove.prev)
+                # We are not tail here, as tail is not added to removable_cells
+                if head == to_remove:
+                    # if we are head, update it, and no additions to removable_cells are required
+                    head = to_remove.next
+                    head.prev = None
+                else:
+                    # Remove ourselves from the list
+                    to_remove.next.prev = to_remove.prev
+                    to_remove.prev.next = to_remove.next
+                    # Check previous again in case it is now less than it's new next
+                    if to_remove.prev.value < to_remove.next.value:
+                        removable_cells.insert(0, to_remove.prev)
             except IndexError:
-                # Remove newly added node last if canRemove is empty
-                remove_node(node)
+                # Remove newly added node last if removable_cells is empty
+                tail = tail.prev
+                tail.next = None
 
         return list_to_int(head)
 
