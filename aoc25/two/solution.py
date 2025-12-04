@@ -1,4 +1,5 @@
 import dataclasses
+from collections import deque
 from typing import List, Self
 
 
@@ -36,9 +37,9 @@ class ProductRange:
         # We could do this without converting to a string...
 
         pid = product_id
-        p = []
+        p = deque()
         while pid > 0:
-            p.append(pid % 10)
+            p.appendleft(pid % 10)
             pid //= 10
 
         while current_pointer < len(p):
