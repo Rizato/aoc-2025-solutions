@@ -36,9 +36,9 @@ class ProductRange:
         # We could do this without converting to a string...
 
         pid = product_id
-        p = list()
+        p = []
         while pid > 0:
-            p.insert(0, pid % 10)
+            p.append(pid % 10)
             pid //= 10
 
         while current_pointer < len(p):
