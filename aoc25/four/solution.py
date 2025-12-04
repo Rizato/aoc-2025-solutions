@@ -1,6 +1,6 @@
 import dataclasses
 import enum
-from typing import Iterable, Self
+from typing import Self
 
 
 class Tile(enum.Enum):
@@ -50,7 +50,7 @@ class DepartmentFloor:
             (0, 1),
             (1, 1),
         ]
-        # propulate with known to be removed
+        # populate with known to be removed
         queue = [
             i
             for i in range(len(self.floor_spaces))
@@ -78,15 +78,20 @@ class DepartmentFloor:
                         continue
                     neighbor_index = self.get_index(neighbor_point)
 
-                    # if we are a roll, update our adjacent count, and add to queue
+                    # if we are a roll, update our adjacent count
                     if self.floor_spaces[neighbor_index] == Tile.ROLL:
-                        if neighbor_index not in queue:
-                            queue.append(neighbor_index)
                         self.num_adjacent[neighbor_index] -= 1
+                        # if we are now below the max adjacent neighbors, add to queue
+                        if self.num_adjacent[neighbor_index] < max_adjacent:
+                            queue.append(neighbor_index)
+
         return total
 
-    def populate_floor(self, layout: Iterable[str]):
+    def populate_floor(self, layout: str):
         # negative one, just so the index adding is near the loop for readability
+        if not layout:
+            return
+
         index = -1
         for line in layout.split("\n"):
             if not line.strip():
@@ -103,7 +108,7 @@ class DepartmentFloor:
                 self.height = index // self.width + 1
                 if char == ".":
                     self.floor_spaces.append(Tile.EMPTY)
-                    # don't car about adjacent non-floor spaces
+                    # don't care about adjacent non-floor spaces
                     self.num_adjacent.append(0)
                 else:
                     # Mark floor as a paper spot
