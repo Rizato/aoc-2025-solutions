@@ -30,14 +30,14 @@ class DepartmentFloor:
         self.floor_spaces = []
         self.num_adjacent = []
 
-    def get_available_rolls(self, max_adjacent: int) -> int:
+    def get_removable_rolls(self, max_adjacent: int) -> int:
         return sum(
             1
             for num, space in zip(self.num_adjacent, self.floor_spaces)
             if space == Tile.ROLL and num < max_adjacent
         )
 
-    def remove_all_available_rolls(self, max_adjacent: int) -> int:
+    def remove_all_rolls(self, max_adjacent: int) -> int:
         # Do a BFS pass through the rolls, to remove all rolls until none can be removed
 
         neighbors = [
@@ -137,7 +137,7 @@ def run() -> int:
     with open("input.txt", "r") as f:
         printing_department.populate_floor(f.read())
 
-    return printing_department.remove_all_available_rolls(4)
+    return printing_department.remove_all_rolls(4)
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ def test_part_one_example():
 @.@.@@@.@.
 """
     floor.populate_floor(example)
-    assert floor.get_available_rolls(4) == 13
+    assert floor.get_removable_rolls(4) == 13
 
 
 def test_part_two_example():
@@ -34,4 +34,4 @@ def test_part_two_example():
 @.@.@@@.@.
 """
     floor.populate_floor(example)
-    assert floor.remove_all_available_rolls(4) == 43
+    assert floor.remove_all_rolls(4) == 43
