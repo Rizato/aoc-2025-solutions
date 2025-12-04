@@ -1,4 +1,5 @@
 import dataclasses
+from collections import deque
 from typing import Iterable, List, Optional, Self
 
 
@@ -112,7 +113,7 @@ class JoltageCalculator:
         tail = head
 
         # cache which nodes have a value less than their follower
-        removable_cells = []
+        removable_cells = deque()
         count = 1
         for cell in bank.cells[1:]:
             # insert new battery at the end
@@ -128,8 +129,8 @@ class JoltageCalculator:
                 continue
 
             # remove the first node that is less than a following node
-            try:
-                to_remove = removable_cells.pop(0)
+            if removable_cells:
+                to_remove = removable_cells.popleft()
                 # We are not tail here, as tail is not added to removable_cells
                 if head == to_remove:
                     # if we are head, update it, and no additions to removable_cells are required
@@ -141,8 +142,8 @@ class JoltageCalculator:
                     to_remove.prev.next = to_remove.next
                     # Check previous again in case it is now less than it's new next
                     if to_remove.prev.value < to_remove.next.value:
-                        removable_cells.insert(0, to_remove.prev)
-            except IndexError:
+                        removable_cells.appendleft(to_remove.prev)
+            else:
                 # Remove newly added node last if removable_cells is empty
                 tail = tail.prev
                 tail.next = None

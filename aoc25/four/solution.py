@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+from collections import deque
 from typing import Self
 
 
@@ -51,14 +52,14 @@ class DepartmentFloor:
             (1, 1),
         ]
         # populate with known to be removed
-        queue = [
+        queue = deque(
             i
             for i in range(len(self.floor_spaces))
             if self.floor_spaces[i] == Tile.ROLL and self.num_adjacent[i] < max_adjacent
-        ]
+        )
         total = 0
         while queue:
-            index = queue.pop(0)
+            index = queue.popleft()
             if (
                 self.floor_spaces[index] == Tile.ROLL
                 and self.num_adjacent[index] < max_adjacent
