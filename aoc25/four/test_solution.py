@@ -17,3 +17,21 @@ def test_part_one_example():
 """
     floor.populate_floor(example)
     assert floor.get_available_rolls(4) == 13
+
+
+def test_part_two_example():
+    floor = DepartmentFloor()
+    example = """
+..@@.@@@@.
+@@@.@.@.@@
+@@@@@.@.@@
+@.@@@@..@.
+@@.@@@@.@@
+.@@@@@@@.@
+.@.@.@.@@@
+@.@@@.@@@@
+.@@@@@@@@.
+@.@.@@@.@.
+"""
+    floor.populate_floor(example)
+    assert floor.remove_all_available_rolls(4) == 43
