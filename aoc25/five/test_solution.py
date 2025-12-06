@@ -44,3 +44,11 @@ def test_part_two_double_overlap():
     17-19"""
     inventory, ids = parser.parse(example)
     assert inventory.get_num_total_inventory() == 18
+
+
+def test_part_two_full_overlap():
+    parser = DatabaseParser()
+    example = """3-10
+    5-7"""
+    inventory, ids = parser.parse(example)
+    assert inventory.get_num_total_inventory() == 8

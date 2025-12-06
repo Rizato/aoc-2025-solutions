@@ -39,26 +39,28 @@ class Inventory:
         return c
 
     def get_num_total_inventory(self) -> int:
-        total = 0
-        for i, fresh_range in enumerate(self.fresh_ranges):
-            for j in range(len(self.fresh_ranges)):
-                if i == j:
-                    continue
+        if not self.fresh_ranges:
+            return 0
 
-                # skip the rest in this case
-                if fresh_range.upper < fresh_range.lower:
-                    continue
+        merged_fresh = []
+        current = None
+        for fresh in sorted(self.fresh_ranges, key=lambda x: x.lower):
+            if not current:
+                current = fresh
+                continue
 
-                check_range = self.fresh_ranges[j]
-                if fresh_range.lower in check_range:
-                    fresh_range.lower = check_range.upper + 1
+            if current.upper < fresh.lower:
+                # We do not overlap, so add current, and move on
+                merged_fresh.append(current)
+                current = fresh
+            else:
+                # we do overlap, so merge them, knowing that we started with current.lower the lower (or equal) by sorting
+                current = FreshRange(current.lower, max(current.upper, fresh.upper))
 
-                if fresh_range.upper in check_range:
-                    fresh_range.upper = check_range.lower - 1
+        # merge the last one at the end of the loop
+        merged_fresh.append(current)
 
-            total += len(fresh_range)
-
-        return total
+        return sum(len(fresh) for fresh in merged_fresh)
 
     def get_num_total_inventory_slow(self) -> int:
         ids = set()
