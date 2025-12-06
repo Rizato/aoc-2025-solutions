@@ -77,7 +77,7 @@ class DatabaseParser:
         fresh_ranges = []
         query_ids = []
         state = CounterState.RANGES
-        for line in database.split("\n"):
+        for line in database.splitlines():
             if state == CounterState.RANGES and not line.strip():
                 state = CounterState.IDS
                 continue

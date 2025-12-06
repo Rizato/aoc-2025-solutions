@@ -94,7 +94,7 @@ class DepartmentFloor:
             return
 
         index = -1
-        for line in layout.split("\n"):
+        for line in layout.splitlines():
             if not line.strip():
                 continue
 
