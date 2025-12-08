@@ -4,103 +4,14 @@ from functools import reduce
 from typing import Callable, List, Tuple
 
 
-class Vertex:
-    def __init__(self, x: int, y: int, z: int):
-        self.x = x
-        self.y = y
-        self.z = z
-
-    def distance(self, other: "Vertex") -> float:
-        dist_sq = (
-            pow(self.x - other.x, 2)
-            + pow(self.y - other.y, 2)
-            + pow(self.z - other.z, 2)
-        )
-        return math.sqrt(dist_sq)
-
-
 class Graph:
-    def __init__(self):
-        self.vertices: List[Vertex] = []
-        self.edges: List[List[int]] = []
-        self.num_vertices = 0
+    def __init__(self, size: int):
+        self.edges: List[List[int]] = [list() for _ in range(size)]
+        self.num_vertices = size
 
-    def add_vertex(self, graph_node: Vertex):
-        self.vertices.append(graph_node)
-        self.edges.append(list())
-        self.num_vertices += 1
-
-    def get_shortest(self) -> List[Tuple[float, int, int]]:
-        distances: List[Tuple[float, int, int]] = []
-        for i, source in enumerate(self.vertices):
-            for j in range(i + 1, len(self.vertices)):
-                target = self.vertices[j]
-                distances.append((source.distance(target), i, j))
-        # sort from shortest to longest, and take n connections
-        return sorted(distances, key=lambda x: x[0])
-
-    def create_single_circuit(self) -> int:
-        connections = deque(self.get_shortest())
-        connected = [False] * self.num_vertices
-
-        # start a circuit on the first connection
-        first = True
-        last_source = 0
-        last_target = 0
-
-        def mark_connected(vertex: int):
-            connected[vertex] = True
-
-        while connections and not all(connected):
-            _, source, target = connections.popleft()
-            last_source = source
-            last_target = target
-            if first:
-                connected[source] = True
-                connected[target] = True
-                first = False
-
-            if connected[target] and not connected[source]:
-                bfs(self, source, mark_connected)
-
-            if connected[source] and not connected[target]:
-                bfs(self, target, mark_connected)
-
-            # add edge to graph
-            self.edges[source].append(target)
-            self.edges[target].append(source)
-
-        # Result is the product of the last connected vertices x values
-        return self.vertices[last_source].x * self.vertices[last_target].x
-
-    def connect_n_shortest(self, n: int) -> int:
-        # Connect the n shortest edges
-        for _, node, other in self.get_shortest()[:n]:
-            self.edges[node].append(other)
-            self.edges[other].append(node)
-
-        # Find the distinct circuits
-        circuits = []
-        processed = [False] * self.num_vertices
-        for i in range(self.num_vertices):
-            # we already found this node in a circuit
-            if processed[i]:
-                continue
-
-            circuit_size = 0
-
-            def update_circuit_size(vertex: int):
-                nonlocal circuit_size
-                circuit_size += 1
-                processed[vertex] = True
-
-            bfs(self, i, update_circuit_size)
-            circuits.append(circuit_size)
-
-        top_three = (
-            sorted(circuits, reverse=True)[:3] if len(circuits) >= 3 else circuits
-        )
-        return reduce(lambda x, y: x * y, top_three)
+    def add_edge(self, source: int, target: int):
+        self.edges[source].append(target)
+        self.edges[target].append(source)
 
 
 def bfs(graph: Graph, start: int, process: Callable[[int], None]):
@@ -116,30 +27,138 @@ def bfs(graph: Graph, start: int, process: Callable[[int], None]):
                 queue.append(edge)
 
 
+class UnionFind:
+    def __init__(self, size: int):
+        self.parents = [i for i in range(size)]
+        self.rank = [1] * size
+
+    def find(self, query: int) -> int:
+        # recursive search to find the parent of my parent
+        if self.parents[query] != query:
+            # this is known as path compression (because we only store the final parent)
+            self.parents[query] = self.find(self.parents[query])
+            return self.parents[query]
+
+        return query
+
+    def union(self, a: int, b: int):
+        x = self.find(a)
+        y = self.find(b)
+        # same parent, means same group
+        if x == y:
+            return
+
+        # make sure x is always the greater rank
+        if self.rank[x] < self.rank[y]:
+            x, y = y, x
+
+        # set the parent
+        self.parents[y] = x
+        # Only increase rank if they are the same, because stacking them increases the height by one
+        # However, when y is smaller (which is forced to be smaller or equal by the swap above),
+        # adding it to the same root, won't surpass x's other child tree ranks
+        if self.rank[x] == self.rank[y]:
+            self.rank[x] += 1
+
+    def all_connected(self) -> bool:
+        return len(set([self.find(i) for i in range(len(self.parents))])) == 1
+
+
+class JunctionBox:
+    def __init__(self, x: int, y: int, z: int):
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def distance(self, other: "JunctionBox") -> float:
+        dist_sq = (
+            pow(self.x - other.x, 2)
+            + pow(self.y - other.y, 2)
+            + pow(self.z - other.z, 2)
+        )
+        return math.sqrt(dist_sq)
+
+
+class JunctionBoxes:
+    def __init__(self, boxes: List[JunctionBox]):
+        self.boxes = boxes
+
+    def connect_n_shortest(self, n: int) -> int:
+        graph = Graph(len(self.boxes))
+
+        # Connect the n shortest edges
+        for _, node, other in self.get_distances()[:n]:
+            graph.add_edge(node, other)
+
+        # Find the distinct circuits
+        circuits = []
+        processed = [False] * graph.num_vertices
+        for i in range(graph.num_vertices):
+            # we already found this node in a circuit
+            if processed[i]:
+                continue
+
+            circuit_size = 0
+
+            def update_circuit_size(vertex: int):
+                nonlocal circuit_size
+                circuit_size += 1
+                processed[vertex] = True
+
+            bfs(graph, i, update_circuit_size)
+            circuits.append(circuit_size)
+
+        top_three = (
+            sorted(circuits, reverse=True)[:3] if len(circuits) >= 3 else circuits
+        )
+        return reduce(lambda x, y: x * y, top_three)
+
+    def find_product_of_last_connection(self) -> int:
+        unionfind = UnionFind(len(self.boxes))
+        connections = deque(self.get_distances())
+
+        source, target = 0, 0
+        while connections and not unionfind.all_connected():
+            _, source, target = connections.popleft()
+            unionfind.union(source, target)
+
+        # Result is the product of the last connected vertices x values
+        return self.boxes[source].x * self.boxes[target].x
+
+    def get_distances(self) -> List[Tuple[float, int, int]]:
+        distances: List[Tuple[float, int, int]] = []
+        for i, source in enumerate(self.boxes):
+            for j in range(i + 1, len(self.boxes)):
+                target = self.boxes[j]
+                distances.append((source.distance(target), i, j))
+        # sort from shortest to longest, and take n connections
+        return sorted(distances, key=lambda x: x[0])
+
+
 class JunctionParser:
 
     @staticmethod
-    def parse(junctions: str) -> Graph:
-        graph = Graph()
+    def parse(junctions: str) -> JunctionBoxes:
+        vertices = []
         for line in junctions.splitlines():
             if not line.strip():
                 continue
 
             coordinates = line.split(",")
-            vertex = Vertex(
+            vertex = JunctionBox(
                 int(coordinates[0]), int(coordinates[1]), int(coordinates[2])
             )
-            graph.add_vertex(vertex)
+            vertices.append(vertex)
 
-        return graph
+        return JunctionBoxes(vertices)
 
 
 def run() -> int:
 
     with open("input.txt", "r") as f:
-        graph = JunctionParser().parse(f.read())
+        boxes = JunctionParser().parse(f.read())
 
-    return graph.create_single_circuit()
+    return boxes.find_product_of_last_connection()
 
 
 if __name__ == "__main__":

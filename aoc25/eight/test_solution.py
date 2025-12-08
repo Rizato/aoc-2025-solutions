@@ -23,9 +23,9 @@ def test_part_one_example():
 862,61,35
 984,92,344
 425,690,689"""
-    circuit = parser.parse(example)
+    junction_boxes = parser.parse(example)
 
-    assert circuit.connect_n_shortest(10) == 40
+    assert junction_boxes.connect_n_shortest(10) == 40
 
 
 def test_part_two_example():
@@ -50,6 +50,6 @@ def test_part_two_example():
 862,61,35
 984,92,344
 425,690,689"""
-    circuit = parser.parse(example)
+    junction_boxes = parser.parse(example)
 
-    assert circuit.create_single_circuit() == 25272
+    assert junction_boxes.find_product_of_last_connection() == 25272
