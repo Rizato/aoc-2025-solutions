@@ -82,6 +82,7 @@ class JunctionBox:
 class JunctionBoxes:
     def __init__(self, boxes: List[JunctionBox]):
         self.boxes = boxes
+        self.distances = []
 
     def connect_n_shortest(self, n: int) -> int:
         graph = Graph(len(self.boxes))
@@ -126,13 +127,16 @@ class JunctionBoxes:
         return self.boxes[source].x * self.boxes[target].x
 
     def get_distances(self) -> List[Tuple[float, int, int]]:
+        if self.distances:
+            return self.distances
         distances: List[Tuple[float, int, int]] = []
         for i, source in enumerate(self.boxes):
             for j in range(i + 1, len(self.boxes)):
                 target = self.boxes[j]
                 distances.append((source.distance(target), i, j))
         # sort from shortest to longest, and take n connections
-        return sorted(distances, key=lambda x: x[0])
+        self.distances = sorted(distances, key=lambda x: x[0])
+        return self.distances
 
 
 class JunctionParser:
