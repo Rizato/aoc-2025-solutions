@@ -1,4 +1,4 @@
-from aoc25.five.solution import DatabaseParser, Inventory
+from aoc25.five.solution import DatabaseParser
 
 
 def test_part_one_example():
