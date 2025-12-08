@@ -56,7 +56,7 @@ class UnionFind:
         self.parents[y] = x
         # Only increase rank if they are the same, because stacking them increases the height by one
         # However, when y is smaller (which is forced to be smaller or equal by the swap above),
-        # adding it to the same root, won't surpass x's other child tree ranks
+        # the minimum rank of x after adding y is rank of y + 1, which is at most equal to the existing rank of x
         if self.rank[x] == self.rank[y]:
             self.rank[x] += 1
 
