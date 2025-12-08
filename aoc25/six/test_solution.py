@@ -8,7 +8,7 @@ def test_part_one_example():
   6 98  215 314
 *   +   *   + """
     problems = parser.parse(example)
-    assert sum(problem.solve() for problem in problems)  == 4277556
+    assert sum(problem.solve() for problem in problems) == 4277556
 
 
 def test_part_two_example():
@@ -18,4 +18,4 @@ def test_part_two_example():
   6 98  215 314
 *   +   *   + """
     problems = parser.parse_part_two(example)
-    assert sum(problem.solve() for problem in problems)  == 3263827
+    assert sum(problem.solve() for problem in problems) == 3263827

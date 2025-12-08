@@ -2,7 +2,7 @@ import dataclasses
 import enum
 from collections import deque
 from functools import reduce
-from typing import List, Generator, Optional
+from typing import Generator, List, Optional
 
 
 class Operator(enum.Enum):
@@ -16,7 +16,10 @@ class MathProblem:
     operator: Operator = Operator.ADD
 
     def solve(self) -> int:
-        return reduce(lambda x, y: x * y if self.operator == Operator.MULTIPLY else x + y, self.operands)
+        return reduce(
+            lambda x, y: x * y if self.operator == Operator.MULTIPLY else x + y,
+            self.operands,
+        )
 
 
 class MathParser:
@@ -43,9 +46,8 @@ class MathParser:
 
                 column += 1
 
-
         return problems
-    
+
     def parse_part_two(self, math_problems: str) -> Generator[MathProblem, None, None]:
         operands: List[Optional[int]] = []
         operators = deque()
@@ -56,17 +58,19 @@ class MathParser:
             for i, value in enumerate(line):
                 if not value.strip():
                     continue
-                    
+
                 if value.isdigit():
                     # Update the corresponding spot with the new value
-                    if operands[i] is None: # none check, in case 0
+                    if operands[i] is None:  # none check, in case 0
                         operands[i] = int(value)
                     else:
                         operands[i] *= 10
                         operands[i] += int(value)
                 else:
-                    operators.append(Operator.ADD if value == "+" else Operator.MULTIPLY)
-            
+                    operators.append(
+                        Operator.ADD if value == "+" else Operator.MULTIPLY
+                    )
+
         # group all
         current = []
         for value in operands:
