@@ -1,7 +1,7 @@
 import math
 from collections import deque
 from functools import reduce
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 
 class Vertex:
@@ -48,21 +48,8 @@ class Graph:
         last_source = 0
         last_target = 0
 
-        # mark both of their circuits connected if either is
-        def mark_circuit_connected(vertex: int):
-            """
-            bfs mark all connected vertices as connected
-            """
-            queue = deque([vertex])
-            discovered = [False] * self.num_vertices
-            discovered[vertex] = True
-            while queue:
-                current = queue.popleft()
-                connected[current] = True
-                for edge in self.edges[current]:
-                    if not discovered[edge]:
-                        discovered[edge] = True
-                        queue.append(edge)
+        def mark_connected(vertex: int):
+            connected[vertex] = True
 
         while connections and not all(connected):
             _, source, target = connections.popleft()
@@ -74,15 +61,16 @@ class Graph:
                 first = False
 
             if connected[target] and not connected[source]:
-                mark_circuit_connected(source)
+                bfs(self, source, mark_connected)
 
             if connected[source] and not connected[target]:
-                mark_circuit_connected(target)
+                bfs(self, target, mark_connected)
 
             # add edge to graph
             self.edges[source].append(target)
             self.edges[target].append(source)
 
+        # Result is the product of the last connected vertices x values
         return self.vertices[last_source].x * self.vertices[last_target].x
 
     def connect_n_shortest(self, n: int) -> int:
@@ -91,36 +79,41 @@ class Graph:
             self.edges[node].append(other)
             self.edges[other].append(node)
 
-        # now we have populated our graph, so find all the distinct sub-groups
-        # bfs across the graph starting from each vertex
+        # Find the distinct circuits
         circuits = []
         processed = [False] * self.num_vertices
-        discovered = [False] * self.num_vertices
         for i in range(self.num_vertices):
-
             # we already found this node in a circuit
             if processed[i]:
                 continue
 
-            # track how many vertices in this circuit
-            size = 0
-            queue = deque([i])
-            discovered[i] = True
-            while queue:
-                vertex = queue.popleft()
-                processed[vertex] = True
-                size += 1
-                for edge in self.edges[vertex]:
-                    if not discovered[edge] and not processed[edge]:
-                        discovered[edge] = True
-                        queue.append(edge)
+            circuit_size = 0
 
-            circuits.append(size)
+            def update_circuit_size(vertex: int):
+                nonlocal circuit_size
+                circuit_size += 1
+                processed[vertex] = True
+
+            bfs(self, i, update_circuit_size)
+            circuits.append(circuit_size)
 
         top_three = (
             sorted(circuits, reverse=True)[:3] if len(circuits) >= 3 else circuits
         )
         return reduce(lambda x, y: x * y, top_three)
+
+
+def bfs(graph: Graph, start: int, process: Callable[[int], None]):
+    queue = deque([start])
+    discovered = [False] * graph.num_vertices
+    discovered[start] = True
+    while queue:
+        current = queue.popleft()
+        process(current)
+        for edge in graph.edges[current]:
+            if not discovered[edge]:
+                discovered[edge] = True
+                queue.append(edge)
 
 
 class JunctionParser:
