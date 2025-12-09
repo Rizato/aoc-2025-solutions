@@ -1,5 +1,6 @@
 import dataclasses
 from collections import defaultdict
+from functools import lru_cache
 from typing import Dict, List, Set
 
 from aoc25.four.solution import Point
@@ -7,8 +8,8 @@ from aoc25.four.solution import Point
 
 @dataclasses.dataclass(frozen=True)
 class Point:
-    x: int
-    y: int
+    x: int = dataclasses.field(hash=True)
+    y: int = dataclasses.field(hash=True)
 
     def rect_area(self, other: Point) -> int:
         return (abs(self.x - other.x) + 1) * (abs(self.y - other.y) + 1)
@@ -17,10 +18,11 @@ class Point:
 class Floor:
     def __init__(self, red_tiles: List[Point]):
         self.red_tiles = red_tiles
+        # this is a sparse map of all green tiles that can be used
+        self.green_tiles: Dict[int, Set[int]] = defaultdict(set)
 
     def find_largest_area(self) -> int:
-        # Cross product of all tiles to find the largest area
-        # O(n**2)
+        # Cross product of all tiles to find the largest area - O(n**2)
         largest_area = 0
         for i, tile in enumerate(self.red_tiles):
             for j in range(i, len(self.red_tiles)):
@@ -34,59 +36,102 @@ class Floor:
     def find_largest_area_part_two(self) -> int:
         # finding the largest area where all 4 points lie within the bounding shape defined by red tiles
         # draw green tiles between points in the rows/columns, then fill with green
-        # basically you have to have at least 3 red corners, and the fourth corner should be red or green
+        if not self.red_tiles:
+            return 0
 
-        # Create a map of points for fast column/row lookups
-        # I figure the points will be very large, so we are making a bucketed sparse array
-        x_to_ys: Dict[int, Set[int]] = defaultdict(set)
-        y_to_xs: Dict[int, Set[int]] = defaultdict(set)
-
-        for tile in self.red_tiles:
-            x_to_ys[tile.x].add(tile.y)
-            y_to_xs[tile.y].add(tile.x)
-
-        # create the boundary by drawing vertical & lines to all points in a row/column
-        green_x_to_ys: Dict[int, Set[int]] = defaultdict(set)
-        for tile in self.red_tiles:
-            # create a green bar for this column
-            ys = x_to_ys[tile.x]
-            # make all green, inclusive
-            for i in range(min(ys), max(ys) + 1):
-                green_x_to_ys[tile.x].add(i)
-
-            # create a green bar for this row
-            xs = y_to_xs[tile.y]
-            # make all green, inclusive
-            for i in range(min(xs), max(xs) + 1):
-                green_x_to_ys[i].add(tile.y)
-
-        # I missed that the fourth point must appear inside the area as well. So, if we create a phantom fourth point, how do we test?
+        if not self.green_tiles:
+            self.populate_green_border()
+        # now do the cross product to find the areas, but only if all four walls are in the green area
         largest_area = 0
-        for tile in self.red_tiles:
-            # see if it is a pivot
-            if len(x_to_ys[tile.x]) > 1 and len(y_to_xs[tile.y]) > 1:
-                # find all the points matching both axes (but not self)
-                matching_x_points = [
-                    Point(tile.x, y) for y in x_to_ys[tile.x] if y != tile.y
-                ]
-                matching_y_points = [
-                    Point(x, tile.y) for x in y_to_xs[tile.y] if x != tile.x
-                ]
-                # compute the area of all matching points, to find the largest possible
-                for x in matching_x_points:
-                    for y in matching_y_points:
-                        if x.rect_area(y) > largest_area:
-                            # get the corner opposite the pivot
-                            fourth_point_x = x.x if x.x != tile.x else y.x
-                            fourth_point_y = x.y if x.y != tile.x else y.y
-                            # check if the last point is contained in the bounding area
-                            ys = green_x_to_ys[fourth_point_x]
-                            if min(ys) <= fourth_point_y <= max(ys):
-                                largest_area = x.rect_area(y)
-                            else:
-                                pass
+        for i, tile in enumerate(self.red_tiles):
+            for j in range(i, len(self.red_tiles)):
+                other = self.red_tiles[j]
+                if self.is_rect_inside_boundary(tile, other):
+                    area = tile.rect_area(other)
+                    if area > largest_area:
+                        largest_area = area
 
         return largest_area
+
+    def populate_green_border(self):
+        last_point = None
+        num_tiles = len(self.red_tiles)
+        for i in range(num_tiles + 1):
+            # forcing it to wrap, so that it will fill the last segment
+            point = self.red_tiles[i % num_tiles]
+            if last_point is None:
+                last_point = point
+                continue
+            self.fill_rect(last_point, point)
+            last_point = point
+
+    def fill_rect(self, start: Point, end: Point):
+        for x in range(min(start.x, end.x), max(start.x, end.x) + 1):
+            for y in range(min(start.y, end.y), max(start.y, end.y) + 1):
+                self.green_tiles[x].add(y)
+
+    def is_rect_inside_boundary(self, start: Point, end: Point) -> bool:
+        # check the full border of the rectangle, so double backs are not counted
+        valid = True
+        for x in range(min(start.x, end.x), max(start.x, end.x) + 1):
+            for y in range(min(start.y, end.y), max(start.y, end.y) + 1):
+                # only check the border, not interior
+                if (
+                    x in (start.x, end.x) or y in (start.y, end.y)
+                ) and not self.point_inside_boundary(Point(x, y)):
+                    valid = False
+                    break
+
+        return valid
+
+    @lru_cache(maxsize=None)
+    def point_inside_boundary(self, p: Point) -> bool:
+        if p.y in self.green_tiles[p.x]:
+            return True
+
+        walls_crossed = 0
+        min_x = min([point.x for point in self.red_tiles])
+        max_x = max([point.x for point in self.red_tiles])
+        # Check left or right to count the walls
+        for goal in (min_x, max_x):
+            for x in range(min(p.x, goal), max(p.x, goal) + 1):
+                # Only count vertical walls
+                if p.y in self.green_tiles[x] and (
+                    p.y + 1 in self.green_tiles[x] or p.y - 1 in self.green_tiles[x]
+                ):
+                    walls_crossed += 1
+
+            # exit early on known success, or known fail
+            if walls_crossed % 2 == 1:
+                return True
+            elif walls_crossed == 0:
+                return False
+
+        return False
+
+    def draw_floor(self) -> str:
+        if not self.green_tiles:
+            self.populate_green_border()
+        output = "\n"
+        x_values = {tile.x for tile in self.red_tiles}
+        max_x = max(x_values)
+        y_values = {tile.y for tile in self.red_tiles}
+        max_y = max(y_values)
+        for y in range(0, max_y + 1):
+            line = ""
+            for x in range(0, max_x + 1):
+                point = Point(x, y)
+                if point in self.red_tiles:
+                    line += "#"
+                elif point.y in self.green_tiles[x]:
+                    line += "@"
+                elif self.point_inside_boundary(point):
+                    line += "$"
+                else:
+                    line += "."
+
+            output += "".join(line) + "\n"
+        return output
 
 
 class RedTileParser:
