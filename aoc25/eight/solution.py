@@ -1,30 +1,7 @@
 import math
-from collections import deque
+from collections import defaultdict, deque
 from functools import reduce
-from typing import Callable, List, Tuple
-
-
-class Graph:
-    def __init__(self, size: int):
-        self.edges: List[List[int]] = [list() for _ in range(size)]
-        self.num_vertices = size
-
-    def add_edge(self, source: int, target: int):
-        self.edges[source].append(target)
-        self.edges[target].append(source)
-
-
-def bfs(graph: Graph, start: int, process: Callable[[int], None]):
-    queue = deque([start])
-    discovered = [False] * graph.num_vertices
-    discovered[start] = True
-    while queue:
-        current = queue.popleft()
-        process(current)
-        for edge in graph.edges[current]:
-            if not discovered[edge]:
-                discovered[edge] = True
-                queue.append(edge)
+from typing import Dict, List, Tuple
 
 
 class UnionFind:
@@ -85,33 +62,21 @@ class JunctionBoxes:
         self.distances = []
 
     def connect_n_shortest(self, n: int) -> int:
-        graph = Graph(len(self.boxes))
+        unionfind = UnionFind(len(self.boxes))
 
         # Connect the n shortest edges
         for _, node, other in self.get_distances()[:n]:
-            graph.add_edge(node, other)
+            unionfind.union(node, other)
 
-        # Find the distinct circuits
-        circuits = []
-        processed = [False] * graph.num_vertices
-        for i in range(graph.num_vertices):
-            # we already found this node in a circuit
-            if processed[i]:
-                continue
+        circuits = [0] * len(self.boxes)
 
-            circuit_size = 0
-
-            def update_circuit_size(vertex: int):
-                nonlocal circuit_size
-                circuit_size += 1
-                processed[vertex] = True
-
-            bfs(graph, i, update_circuit_size)
-            circuits.append(circuit_size)
+        for i in range(len(self.boxes)):
+            circuits[unionfind.find(i)] += 1
 
         top_three = (
             sorted(circuits, reverse=True)[:3] if len(circuits) >= 3 else circuits
         )
+
         return reduce(lambda x, y: x * y, top_three)
 
     def find_product_of_last_connection(self) -> int:
