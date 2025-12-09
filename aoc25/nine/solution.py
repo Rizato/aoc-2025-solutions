@@ -1,6 +1,5 @@
 import dataclasses
 from collections import defaultdict
-from functools import lru_cache
 from typing import Dict, List, Set
 
 from aoc25.four.solution import Point
@@ -20,6 +19,14 @@ class Floor:
         self.red_tiles = red_tiles
         # this is a sparse map of all green tiles that can be used
         self.green_tiles: Dict[int, Set[int]] = defaultdict(set)
+        self.walls_crossed_left: Dict[Point, int] = defaultdict(int)
+        self.walls_crossed_right: Dict[Point, int] = defaultdict(int)
+
+        xs, ys = zip(*[(p.x, p.y) for p in self.red_tiles])
+        self.x_range = (min(xs), max(xs))
+        self.y_range = (min(ys), max(ys))
+
+        self.inside: Dict[Point, bool] = {}
 
     def find_largest_area(self) -> int:
         # Cross product of all tiles to find the largest area - O(n**2)
@@ -46,10 +53,14 @@ class Floor:
         for i, tile in enumerate(self.red_tiles):
             for j in range(i, len(self.red_tiles)):
                 other = self.red_tiles[j]
-                if self.is_rect_inside_boundary(tile, other):
-                    area = tile.rect_area(other)
-                    if area > largest_area:
-                        largest_area = area
+                area = tile.rect_area(other)
+                corner_a = Point(tile.x, other.y)
+                corner_b = Point(other.x, tile.y)
+                if corner_a.y not in self.green_tiles[corner_a.x] or corner_b.y not in self.green_tiles[corner_b.x]:
+                    continue
+
+                if area > largest_area and self.is_rect_inside_boundary(tile, other):
+                    largest_area = area
 
         return largest_area
 
@@ -73,41 +84,81 @@ class Floor:
     def is_rect_inside_boundary(self, start: Point, end: Point) -> bool:
         # check the full border of the rectangle, so double backs are not counted
         valid = True
-        for x in range(min(start.x, end.x), max(start.x, end.x) + 1):
-            for y in range(min(start.y, end.y), max(start.y, end.y) + 1):
-                # only check the border, not interior
-                if (
-                    x in (start.x, end.x) or y in (start.y, end.y)
-                ) and not self.point_inside_boundary(Point(x, y)):
-                    valid = False
-                    break
+        points = []
+        min_x = min(start.x, end.x)
+        max_x = max(start.x, end.x)
+        min_y = min(start.y, end.y)
+        max_y = max(start.y, end.y)
+        # add top and bottom
+        for y in (min_y, max_y):
+            for x in range(min_x, max_x + 1):
+                points.append(Point(x, y))
+
+        # add left and right
+        for x in (min_x, max_x):
+            for y in range(min_y, max_y + 1):
+                points.append(Point(x, y))
+
+        for point in points:
+            # only check the border, not interior to save time
+            if not self.point_inside_boundary(point):
+                valid = False
+                break
 
         return valid
 
-    @lru_cache(maxsize=None)
     def point_inside_boundary(self, p: Point) -> bool:
+        if p.x == 7 and p.y == 1:
+            pass
+
+        if p in self.inside:
+            return self.inside[p]
+
+        min_x, max_x = self.x_range
+        min_y, max_y = self.y_range
+        if p.x < min_x or p.x > max_x or p.y < min_y or p.y > max_y:
+            self.inside[p] = False
+            return False
+
         if p.y in self.green_tiles[p.x]:
+            self.inside[p] = True
             return True
 
-        walls_crossed = 0
-        min_x = min([point.x for point in self.red_tiles])
-        max_x = max([point.x for point in self.red_tiles])
-        # Check left or right to count the walls
-        for goal in (min_x, max_x):
-            for x in range(min(p.x, goal), max(p.x, goal) + 1):
-                # Only count vertical walls
-                if p.y in self.green_tiles[x] and (
-                    p.y + 1 in self.green_tiles[x] or p.y - 1 in self.green_tiles[x]
-                ):
-                    walls_crossed += 1
+        inside = False
+        for cache, target in (
+            (self.walls_crossed_left, min_x),
+            (self.walls_crossed_right, max_x),
+        ):
+            walls_crossed = self.num_walls_crossed(cache, p, target)
 
-            # exit early on known success, or known fail
             if walls_crossed % 2 == 1:
-                return True
+                inside = True
             elif walls_crossed == 0:
+                self.inside[p] = False
                 return False
 
-        return False
+        self.inside[p] = inside
+        return inside
+
+    def num_walls_crossed(
+        self, cache: Dict[Point, int], p: Point, target_x: int
+    ) -> int:
+        if p in cache:
+            return cache[p]
+
+        step = 1 if p.x > target_x else -1
+        for x in range(target_x, p.x + step, step):
+            # skip to unknown
+            if Point(x, p.y) in cache:
+                continue
+
+            previous = cache[Point(x - step, p.y)] if x > 0 else 0
+            is_vertical_wall = p.y in self.green_tiles[x] and (
+                p.y + 1 in self.green_tiles[x] or p.y - 1 in self.green_tiles[x]
+            )
+            cache[Point(x, p.y)] = (1 if is_vertical_wall else 0) + previous
+
+        return cache[p]
 
     def draw_floor(self) -> str:
         if not self.green_tiles:
