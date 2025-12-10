@@ -100,6 +100,71 @@ def test_part_two_double_back_wider_taller():
     assert red_tiles.find_largest_area_part_two() == 33
 
 
+def test_part_two_top_hole():
+    #  abba      abba
+    #  bbbb      bbbb
+    #  bbbabbbbbbabbb
+    #  abbbbbbbbbbbba
+    parser = RedTileParser()
+    example = """0,0
+    3,0
+    3,2
+    10,2
+    10,0
+    13,0
+    13,3
+    0,3"""
+    red_tiles = parser.parse(example)
+    print(red_tiles.draw_floor())
+    assert red_tiles.find_largest_area_part_two() == 22
+
+
+def test_part_two_left_hole():
+    #  abbbba
+    #  bbbbbb
+    #  ababbb
+    #    bbbb
+    #    bbbb
+    #  ababba
+    #  bbbbbb
+    #  abbbba
+    parser = RedTileParser()
+    example = """0,0
+        5,0
+        5,7
+        0,7
+        0,5
+        2,5
+        2,2
+        0,2"""
+    red_tiles = parser.parse(example)
+    print(red_tiles.draw_floor())
+    assert red_tiles.find_largest_area_part_two() == 24
+
+
+def test_part_two_right_hole():
+    #  abbbba
+    #  bbbbbb
+    #  bbbaba
+    #  bbbb
+    #  bbbb
+    #  bbbaba
+    #  bbbbbb
+    #  abbbba
+    parser = RedTileParser()
+    example = """0,0
+    5,0
+    5,2
+    3,2
+    3,5
+    5,5
+    5,7
+    0,7"""
+    red_tiles = parser.parse(example)
+    print(red_tiles.draw_floor())
+    assert red_tiles.find_largest_area_part_two() == 24
+
+
 def test_part_two_double_back_surround():
     #  abbbbbbbbbba
     #  bbabbbbbbabb

@@ -56,7 +56,10 @@ class Floor:
                 area = tile.rect_area(other)
                 corner_a = Point(tile.x, other.y)
                 corner_b = Point(other.x, tile.y)
-                if corner_a.x not in self.green_tiles[corner_a.y] or corner_b.x not in self.green_tiles[corner_b.y]:
+                if (
+                    corner_a.x not in self.green_tiles[corner_a.y]
+                    or corner_b.x not in self.green_tiles[corner_b.y]
+                ):
                     continue
 
                 if area > largest_area and self.is_rect_inside_boundary(tile, other):
@@ -75,29 +78,6 @@ class Floor:
                 continue
             self.fill_rect(last_point, point)
             last_point = point
-
-        for row in range(self.y_range[0], self.y_range[1]):
-            inside = True
-            has_past_wall = False
-            xs = self.green_tiles[row]
-            started_on_up_wall = min(xs) in self.green_tiles[row - 1]
-            for x in range(min(xs) + 1, max(xs) + 1):
-                if inside:
-                    # We found an empty spot inside, so we claim it
-                    if x not in self.green_tiles[row]:
-                        self.green_tiles[row].add(x)
-                        # note that was are not in a wall, so we can count a horizontal segment as one wall
-                        has_past_wall = True
-                    else:
-                        # if we hit a red tile, that isn't a wall going up, or we have passed a blank space
-                        wall_direction_check = 1 if started_on_up_wall else -1
-                        if has_past_wall or (x in self.red_tile_x_by_y[row] and x not in self.green_tiles[row + wall_direction_check]):
-                            has_past_wall = False
-                            inside = False
-                else:
-                    # we were not inside, and passed a wall, so now inside
-                    if x in self.green_tiles[row]:
-                        inside = True
 
     def fill_rect(self, start: Point, end: Point):
         for x in range(min(start.x, end.x), max(start.x, end.x) + 1):
@@ -124,7 +104,39 @@ class Floor:
         return all(self.point_inside_boundary(point) for point in points)
 
     def point_inside_boundary(self, p: Point) -> bool:
+        if not p.x in self.green_tiles[p.y]:
+            self.scan_row(p.y)
         return p.x in self.green_tiles[p.y]
+
+    def scan_row(self, row: int):
+        inside = True
+        has_past_wall = False
+        xs = []
+        xs.extend(self.red_tile_x_by_y[row])
+        xs.extend(self.green_tiles[row])
+        if not xs:
+            return
+        started_on_up_wall = min(xs) in self.green_tiles[row - 1]
+        for x in range(min(xs) + 1, max(xs) + 1):
+            if inside:
+                # We found an empty spot inside, so we claim it
+                if x not in self.green_tiles[row]:
+                    self.green_tiles[row].add(x)
+                    # note that was are not in a wall, so we can count a horizontal segment as one wall
+                    has_past_wall = True
+                else:
+                    # if we hit a red tile, that isn't a wall going up, or we have passed a blank space
+                    wall_direction_check = 1 if started_on_up_wall else -1
+                    if has_past_wall or (
+                        x in self.red_tile_x_by_y[row]
+                        and x not in self.green_tiles[row + wall_direction_check]
+                    ):
+                        has_past_wall = False
+                        inside = False
+            else:
+                # we were not inside, and passed a wall, so now inside
+                if x in self.green_tiles[row]:
+                    inside = True
 
     def draw_floor(self) -> str:
         if not self.green_tiles:
@@ -135,6 +147,7 @@ class Floor:
         y_values = {tile.y for tile in self.red_tiles}
         max_y = max(y_values)
         for y in range(0, max_y + 1):
+            self.scan_row(y)
             line = ""
             for x in range(0, max_x + 1):
                 point = Point(x, y)
