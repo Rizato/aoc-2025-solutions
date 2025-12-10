@@ -20,9 +20,13 @@ class Floor:
         # this is a sparse map of all green tiles that can be used
         self.green_tiles: Dict[int, Set[int]] = defaultdict(set)
 
+        self.polygon_x_ranges_by_y: Dict[int, List[Tuple[int, int]]] = defaultdict(list)
+
         xs, ys = zip(*[(p.x, p.y) for p in self.red_tiles])
         self.x_range = (min(xs), max(xs))
         self.y_range = (min(ys), max(ys))
+
+        self.scanned_rows = set()
 
         self.red_tile_x_by_y: Dict[int, Set[int]] = defaultdict(set)
         self.red_tile_y_by_x: Dict[int, Set[int]] = defaultdict(set)
@@ -59,16 +63,12 @@ class Floor:
                 areas.append((area, tile, other))
         areas = sorted(areas, key=lambda x: x[0], reverse=True)
         for area, tile, other in areas:
-
-            for row in range(min(other.y, tile.y), max(other.y, tile.y) + 1):
-                self.scan_row(tile.y)
-
             corner_a = Point(tile.x, other.y)
             corner_b = Point(other.x, tile.y)
-            if (
-                corner_a.x not in self.green_tiles[corner_a.y]
-                or corner_b.x not in self.green_tiles[corner_b.y]
-            ):
+
+            if not self.point_inside_boundary(
+                corner_a
+            ) or not self.point_inside_boundary(corner_b):
                 continue
 
             if self.is_rect_inside_boundary(tile, other):
@@ -113,9 +113,30 @@ class Floor:
         return all(self.point_inside_boundary(point) for point in points)
 
     def point_inside_boundary(self, p: Point) -> bool:
-        return p.x in self.green_tiles[p.y]
+        if p.x in self.green_tiles[p.y]:
+            return True
+
+        # quick fail for points that cannot be in the polygon
+        existing_points = sorted(self.green_tiles[p.y])
+        if (
+            not existing_points
+            or p.x < min(existing_points)
+            or p.x > max(existing_points)
+        ):
+            return False
+
+        # instead of scanning each value, define ranges in the row that are inside vs outside, then do a comparison
+
+        self.scan_row(p.y)
+        # scan ranges for the row
+        x_ranges = self.polygon_x_ranges_by_y[p.y]
+        return any((True for lower, upper in x_ranges if lower <= p.x <= upper))
 
     def scan_row(self, row: int):
+        if row in self.scanned_rows:
+            return
+
+        self.scanned_rows.add(row)
         inside = True
         has_past_wall = False
         xs = []
@@ -123,27 +144,55 @@ class Floor:
         xs.extend(self.green_tiles[row])
         if not xs:
             return
-        started_on_up_wall = min(xs) in self.green_tiles[row - 1]
-        for x in range(min(xs) + 1, max(xs) + 1):
+
+        is_vertical_corner = (
+            min(xs) not in self.green_tiles[row - 1]
+            or min(xs) not in self.green_tiles[row + 1]
+        )
+        started_bottom_corner = min(xs) in self.green_tiles[row - 1]
+        # This is too slow, it needs to do a comparison instead of calculating all values
+        last_x = None
+        # a list of inside the polygon ranges, inclusive
+        inside_ranges: List[Tuple[int, int]] = []
+        range_start = None
+
+        for x in sorted(set(xs)):
+            if last_x is None:
+                last_x = x
+                continue
+
+            # iterate on red tiles, and green tiles
             if inside:
-                # We found an empty spot inside, so we claim it
-                if x not in self.green_tiles[row]:
-                    self.green_tiles[row].add(x)
-                    # note that was are not in a wall, so we can count a horizontal segment as one wall
+                # Start the range when we go inside
+                if range_start is None:
+                    range_start = last_x
+
+                # we have hit a gap (lets us count horizontal segments as a single wall)
+                if last_x + 1 != x:
                     has_past_wall = True
-                else:
-                    # if we hit a red tile, that isn't a wall going up, or we have passed a blank space
-                    wall_direction_check = 1 if started_on_up_wall else -1
-                    if has_past_wall or (
-                        x in self.red_tile_x_by_y[row]
-                        and x not in self.green_tiles[row + wall_direction_check]
-                    ):
-                        has_past_wall = False
-                        inside = False
+
+                # if we hit a red tile, that isn't a wall going up, or we have passed a blank space
+                wall_direction_check = 1 if started_bottom_corner else -1
+                if has_past_wall or (
+                    x in self.red_tile_x_by_y[row]
+                    and is_vertical_corner
+                    and x not in self.green_tiles[row + wall_direction_check]
+                ):
+                    has_past_wall = False
+                    inside = False
+                    inside_ranges.append((range_start, x))
+                    range_start = None
             else:
                 # we were not inside, and passed a wall, so now inside
-                if x in self.green_tiles[row]:
-                    inside = True
+                inside = True
+                is_vertical_corner = (
+                    x not in self.green_tiles[row - 1]
+                    or x not in self.green_tiles[row + 1]
+                )
+                started_bottom_corner = x in self.green_tiles[row - 1]
+            last_x = x
+
+        self.polygon_x_ranges_by_y[row].extend(inside_ranges)
 
     def draw_floor(self) -> str:
         if not self.green_tiles:
@@ -162,6 +211,8 @@ class Floor:
                     line += "#"
                 elif x in self.green_tiles[point.y]:
                     line += "@"
+                elif self.point_inside_boundary(point):
+                    line += "$"
                 else:
                     line += "."
 
