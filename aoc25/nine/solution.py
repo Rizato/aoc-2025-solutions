@@ -1,6 +1,6 @@
 import dataclasses
 from collections import defaultdict
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from aoc25.four.solution import Point
 
@@ -25,8 +25,10 @@ class Floor:
         self.y_range = (min(ys), max(ys))
 
         self.red_tile_x_by_y: Dict[int, Set[int]] = defaultdict(set)
+        self.red_tile_y_by_x: Dict[int, Set[int]] = defaultdict(set)
         for point in self.red_tiles:
             self.red_tile_x_by_y[point.y].add(point.x)
+            self.red_tile_y_by_x[point.x].add(point.y)
 
     def find_largest_area(self) -> int:
         # Cross product of all tiles to find the largest area - O(n**2)
@@ -49,23 +51,30 @@ class Floor:
         if not self.green_tiles:
             self.populate_green_border()
         # now do the cross product to find the areas, but only if all four walls are in the green area
-        largest_area = 0
+        areas: List[Tuple[int, Point, Point]] = []
         for i, tile in enumerate(self.red_tiles):
             for j in range(i, len(self.red_tiles)):
                 other = self.red_tiles[j]
                 area = tile.rect_area(other)
-                corner_a = Point(tile.x, other.y)
-                corner_b = Point(other.x, tile.y)
-                if (
-                    corner_a.x not in self.green_tiles[corner_a.y]
-                    or corner_b.x not in self.green_tiles[corner_b.y]
-                ):
-                    continue
+                areas.append((area, tile, other))
+        areas = sorted(areas, key=lambda x: x[0], reverse=True)
+        for area, tile, other in areas:
 
-                if area > largest_area and self.is_rect_inside_boundary(tile, other):
-                    largest_area = area
+            for row in range(min(other.y, tile.y), max(other.y, tile.y) + 1):
+                self.scan_row(tile.y)
 
-        return largest_area
+            corner_a = Point(tile.x, other.y)
+            corner_b = Point(other.x, tile.y)
+            if (
+                corner_a.x not in self.green_tiles[corner_a.y]
+                or corner_b.x not in self.green_tiles[corner_b.y]
+            ):
+                continue
+
+            if self.is_rect_inside_boundary(tile, other):
+                return area
+
+        return 0
 
     def populate_green_border(self):
         last_point = None
@@ -104,8 +113,6 @@ class Floor:
         return all(self.point_inside_boundary(point) for point in points)
 
     def point_inside_boundary(self, p: Point) -> bool:
-        if not p.x in self.green_tiles[p.y]:
-            self.scan_row(p.y)
         return p.x in self.green_tiles[p.y]
 
     def scan_row(self, row: int):
