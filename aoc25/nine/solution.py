@@ -98,14 +98,26 @@ class Floor:
         for y in (min_y, max_y):
             self.scan_row(y)
             for x in range(min_x, max_x + 1):
-                if not any((True for lower, upper in self.polygon_x_ranges_by_y[y] if lower <= x <= upper)):
+                if not any(
+                    (
+                        True
+                        for lower, upper in self.polygon_x_ranges_by_y[y]
+                        if lower <= x <= upper
+                    )
+                ):
                     return False
 
         # add left and right
         for x in (min_x, max_x):
             for y in range(min_y, max_y + 1):
                 self.scan_row(y)
-                if not any((True for lower, upper in self.polygon_x_ranges_by_y[y] if lower <= x <= upper)):
+                if not any(
+                    (
+                        True
+                        for lower, upper in self.polygon_x_ranges_by_y[y]
+                        if lower <= x <= upper
+                    )
+                ):
                     return False
 
         return True
