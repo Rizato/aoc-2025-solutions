@@ -98,42 +98,38 @@ class Machine:
         valid_heights = []
         height = 0
 
-        def press_button(index: int):
-            # try pressing, then not pressing, then go to the next button in each case
-            if index >= len(self.buttons):
-                return
+        # can we do a greedy alogorithm?
+        # or maybe dp?
+        # build a matrix of each possible value at each possible button press?
+        # so for each press 0 -> inf
+        # press all buttons and record
+        # then do the same
+        # and the same
+        # until we get a match?
+        # however, at each stage we iterate across all buttons at all values
+        # we trim if any value exceeds the goal counter for any position?
+        # so at each count, we record all possible positions...
+        # this is exponential, with some trimming
 
-            nonlocal height
-            # Press sequence
-            height += 1
-            self.press_button(self.buttons[index])
-            matches = self.lights.test()
-            if matches:
-                valid_heights.append(height)
-            else:
-                # move onto the next button if we don't match
-                press_button(index + 1)
+        presses = 0
+        previous_possible = [[0] * len(self.joltage.joltages)]
+        next_possible: List[List[int]] = []
+        while previous_possible:
+            presses += 1
+            # for each possible value,
+            for possible in previous_possible:
+                for button in self.buttons:
+                    # increment each i if that index is in the button
+                    new_joltage = [v + 1 if i in button.values else v for i, v in enumerate(possible)]
+                    if new_joltage == self.joltage.goal:
+                        return presses
+                    # prune any joltages paths that exceed the goal
+                    if all(new_joltage[i] <= self.joltage.goal[i] for i in range(len(new_joltage))):
+                        next_possible.append(new_joltage)
 
-            # Reset from press sequence
-            height -= 1
-            self.press_button(self.buttons[index])
-            # no need to check further with off, the best we could do is tie this result
-            if matches:
-                return
-
-            # Try next buttons again, with us off this time
-            press_button(index + 1)
-
-        press_button(0)
-
-        if valid_heights:
-            return min(valid_heights)
-
+            previous_possible = next_possible
+            next_possible = []
         raise ValueError
-
-    def press_button_joltage(self, button: Button):
-        for m in button.values:
-            self.joltage.increment(m)
 
 
 class DiagramParser:
