@@ -49,21 +49,21 @@ class Machine:
             # Press sequence
             height += 1
             self.press_button(self.buttons[index])
-            if self.lights.test():
+            matches = self.lights.test()
+            if matches:
                 valid_heights.append(height)
-                # Don't bother checking next, because that will be longer
-                height -= 1
-                self.press_button(self.buttons[index])
-                return
-
-            # move onto the next button
-            press_button(index + 1)
+            else:
+                # move onto the next button if we don't match
+                press_button(index + 1)
 
             # Reset from press sequence
             height -= 1
             self.press_button(self.buttons[index])
+            # no need to check further with off, the best we could do is tie this result
+            if matches:
+                return
 
-            # No Press sequence, just move on
+            # Try next buttons again, with us off this time
             press_button(index + 1)
 
         press_button(0)
