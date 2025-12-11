@@ -1,5 +1,7 @@
 import dataclasses
-from typing import List, Optional, Set, Tuple
+import heapq
+from collections import deque
+from typing import List, Optional, Set, Tuple, Deque, Dict
 
 
 @dataclasses.dataclass
@@ -102,37 +104,57 @@ class Machine:
 
     def find_min_button_presses_joltage(self) -> int:
         # this is more complicated as we can press each button multiple times
+        goal = self.joltage.goal
+        initial: Tuple[int, ...] = tuple([0] * len(self.joltage.joltages))
 
-        # brute force by calculating all possible options at each number of presses, until we find the first solution
-        presses = 0
-        previous_possible = [[0] * len(self.joltage.joltages)]
-        next_possible: List[List[int]] = []
-        seen: Set[Tuple[int, ...]] = set(tuple(*previous_possible))
-        while previous_possible:
-            presses += 1
-            # for each possible value,
-            for possible in previous_possible:
-                for button in self.buttons:
-                    # increment each i if that index is in the button
-                    updated_joltage = [
-                        v + 1 if i in button.values else v
-                        for i, v in enumerate(possible)
-                    ]
-                    if updated_joltage == self.joltage.goal:
-                        return presses
-                    # prune any joltages paths that exceed the goal
-                    # also prune any seen values, as they have a shorter answer already
-                    joltage_tuple = tuple(updated_joltage)
-                    if joltage_tuple not in seen and all(
-                        updated_joltage[i] <= self.joltage.goal[i]
-                        for i in range(len(updated_joltage))
-                    ):
-                        seen.add(joltage_tuple)
-                        next_possible.append(updated_joltage)
+        # track a heap with estimated, current, and state
+        heap: List[Tuple[int, int, Tuple[int, ...]]] = [
+            (self.heuristic(initial), 0, initial)
+        ]
+        cache: Dict[Tuple[int, ...], int] = dict()
+        # Track a list to the current state
+        cache[tuple(initial)] = 0
+        while heap:
+            estimated, score, current = heapq.heappop(heap)
 
-            previous_possible = next_possible
-            next_possible = []
+            # if our score was lowered by some other pass, we can skip
+            if current in cache and cache[current] < score:
+                continue
+
+            for button in self.buttons:
+                updated_score = score + 1
+                # increment each i if that index is in the button
+                updated_joltage = tuple(
+                    v + 1 if i in button.values else v for i, v in enumerate(current)
+                )
+
+                if all(j == g for j, g in zip(updated_joltage, goal)):
+                    return updated_score
+
+                if any(
+                    updated_joltage[i] > self.joltage.goal[i]
+                    for i in range(len(updated_joltage))
+                ):
+                    continue
+
+                if (
+                    not updated_joltage in cache
+                    or cache[updated_joltage] > updated_score
+                ):
+                    cache[updated_joltage] = updated_score
+                    updated_estimate = updated_score + self.heuristic(updated_joltage)
+
+                    heapq.heappush(
+                        heap, (updated_estimate, updated_score, updated_joltage)
+                    )
+
+        if tuple(goal) in cache:
+            return cache[tuple(goal)]
         raise ValueError
+
+    def heuristic(self, current: Tuple[int, ...]) -> int:
+        # find the min difference between any button and the goal at the same index
+        return sum([g - c for c, g in zip(current, self.joltage.goal)])
 
 
 class DiagramParser:
