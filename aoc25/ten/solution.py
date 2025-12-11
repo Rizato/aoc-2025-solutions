@@ -1,5 +1,5 @@
 import dataclasses
-from typing import List, Optional
+from typing import List, Optional, Set, Tuple
 
 
 @dataclasses.dataclass
@@ -30,6 +30,7 @@ class IndicatorLights:
         on_lights = [i for i, l in enumerate(self.lights) if l]
         return self.goal == on_lights
 
+
 class JoltagePanel:
     joltages: List[int]
     goal: List[int]
@@ -40,10 +41,20 @@ class JoltagePanel:
         self.joltages = [0] * len(goal)
 
     def increment(self, index: int):
-        self.joltages[index] = not self.joltages[index]
+        self.joltages[index] += 1
+
+    def is_too_high(self):
+        for i, joltage in enumerate(self.joltages):
+            if joltage > self.goal[i]:
+                return True
+
+        return False
 
     def test(self) -> bool:
         return self.goal == self.joltages
+
+    def reset(self):
+        self.joltages = [0] * len(self.joltages)
 
 
 @dataclasses.dataclass
@@ -54,35 +65,31 @@ class Machine:
 
     def find_min_button_presses(self):
         valid_heights = []
-        height = 0
 
-        def press_button(index: int):
+        def press_button(index: int, height: int):
             # try pressing, then not pressing, then go to the next button in each case
             if index >= len(self.buttons):
                 return
 
-            nonlocal height
             # Press sequence
-            height += 1
             self.press_button(self.buttons[index])
             matches = self.lights.test()
             if matches:
-                valid_heights.append(height)
+                valid_heights.append(height + 1)
             else:
                 # move onto the next button if we don't match
-                press_button(index + 1)
+                press_button(index + 1, height + 1)
 
             # Reset from press sequence
-            height -= 1
             self.press_button(self.buttons[index])
             # no need to check further with off, the best we could do is tie this result
             if matches:
                 return
 
             # Try next buttons again, with us off this time
-            press_button(index + 1)
+            press_button(index + 1, height)
 
-        press_button(0)
+        press_button(0, 0)
 
         if valid_heights:
             return min(valid_heights)
@@ -93,39 +100,35 @@ class Machine:
         for m in button.values:
             self.lights.flip(m)
 
-    def find_min_button_presses_joltage(self):
+    def find_min_button_presses_joltage(self) -> int:
         # this is more complicated as we can press each button multiple times
-        valid_heights = []
-        height = 0
 
-        # can we do a greedy alogorithm?
-        # or maybe dp?
-        # build a matrix of each possible value at each possible button press?
-        # so for each press 0 -> inf
-        # press all buttons and record
-        # then do the same
-        # and the same
-        # until we get a match?
-        # however, at each stage we iterate across all buttons at all values
-        # we trim if any value exceeds the goal counter for any position?
-        # so at each count, we record all possible positions...
-        # this is exponential, with some trimming
-
+        # brute force by calculating all possible options at each number of presses, until we find the first solution
         presses = 0
         previous_possible = [[0] * len(self.joltage.joltages)]
         next_possible: List[List[int]] = []
+        seen: Set[Tuple[int, ...]] = set(tuple(*previous_possible))
         while previous_possible:
             presses += 1
             # for each possible value,
             for possible in previous_possible:
                 for button in self.buttons:
                     # increment each i if that index is in the button
-                    new_joltage = [v + 1 if i in button.values else v for i, v in enumerate(possible)]
-                    if new_joltage == self.joltage.goal:
+                    updated_joltage = [
+                        v + 1 if i in button.values else v
+                        for i, v in enumerate(possible)
+                    ]
+                    if updated_joltage == self.joltage.goal:
                         return presses
                     # prune any joltages paths that exceed the goal
-                    if all(new_joltage[i] <= self.joltage.goal[i] for i in range(len(new_joltage))):
-                        next_possible.append(new_joltage)
+                    # also prune any seen values, as they have a shorter answer already
+                    joltage_tuple = tuple(updated_joltage)
+                    if joltage_tuple not in seen and all(
+                        updated_joltage[i] <= self.joltage.goal[i]
+                        for i in range(len(updated_joltage))
+                    ):
+                        seen.add(joltage_tuple)
+                        next_possible.append(updated_joltage)
 
             previous_possible = next_possible
             next_possible = []
@@ -158,7 +161,9 @@ class DiagramParser:
                 button = Button([int(b) for b in button_str[1:end_index].split(",")])
                 buttons.append(button)
 
-            joltage = JoltagePanel([int(joltage) for joltage in "".join(rest)[:-1].split(",")])
+            joltage = JoltagePanel(
+                [int(joltage) for joltage in "".join(rest)[:-1].split(",")]
+            )
             machines.append(Machine(lights, buttons, joltage))
         return machines
 

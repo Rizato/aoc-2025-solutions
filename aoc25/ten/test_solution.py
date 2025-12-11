@@ -48,7 +48,11 @@ def test_part_two_example():
 [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}"""
     machines = parser.parse(example)
 
-    assert [machine.find_min_button_presses_joltage() for machine in machines] == [10, 12, 11]
+    assert [machine.find_min_button_presses_joltage() for machine in machines] == [
+        10,
+        12,
+        11,
+    ]
 
 
 def test_part_two_first():
@@ -69,6 +73,7 @@ def test_part_two_second():
     machines = parser.parse(example)
 
     assert machines[1].find_min_button_presses_joltage() == 12
+
 
 def test_part_two_third():
     parser = DiagramParser()
