@@ -1,5 +1,4 @@
 import dataclasses
-from collections import deque
 from typing import List, Optional
 
 
@@ -38,56 +37,36 @@ class Machine:
     buttons: List[Button]
 
     def find_min_button_presses(self):
-        # this first solution creates a tree of every possible option
-        # then iterates across it to find all the valid solutions
-        # then it grabs the minimum solution
-        root = TreeNode(None)
-        previous_row = [root]
-        next_row = []
-        for button in self.buttons:
-            for node in previous_row:
-                node.on = TreeNode(button)
-                node.off = TreeNode(button)
-                next_row.extend([node.off, node.on])
-            previous_row = next_row
-            next_row = []
-
-        stack = deque()
         valid_heights = []
+        height = 0
 
-        # this is looking for the minimum, with a series of sub-problems... is this dp?
-        def press_button(tree_node: TreeNode, press: bool):
-            if not tree_node:
+        def press_button(index: int):
+            # try pressing, then not pressing, then go to the next button in each case
+            if index >= len(self.buttons):
                 return
 
-            # press button
-            # if not right, call on then off
-            if press:
-                stack.appendleft(tree_node)
-                self.press_button(tree_node.value)
+            nonlocal height
+            # Press sequence
+            height += 1
+            self.press_button(self.buttons[index])
+            if self.lights.test():
+                valid_heights.append(height)
+                # Don't bother checking next, because that will be longer
+                height -= 1
+                self.press_button(self.buttons[index])
+                return
 
-                # mark if correct
-                if self.lights.test():
-                    valid_heights.append(len(stack))
-                    # reset the button
-                    if press:
-                        stack.popleft()
-                        self.press_button(tree_node.value)
-                    return
+            # move onto the next button
+            press_button(index + 1)
 
-            # run over the children
-            if tree_node.on:
-                press_button(tree_node.on, True)
-            if tree_node.off:
-                press_button(tree_node.off, False)
-            # reset the button
-            if press:
-                stack.popleft()
-                self.press_button(tree_node.value)
+            # Reset from press sequence
+            height -= 1
+            self.press_button(self.buttons[index])
 
-        press_button(root.on, True)
-        stack.clear()
-        press_button(root.off, False)
+            # No Press sequence, just move on
+            press_button(index + 1)
+
+        press_button(0)
 
         if valid_heights:
             return min(valid_heights)
