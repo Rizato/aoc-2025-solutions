@@ -1,5 +1,6 @@
 import dataclasses
 from collections import defaultdict
+from functools import lru_cache
 from typing import Dict, List, Set, Tuple
 
 from aoc25.four.solution import Point
@@ -55,26 +56,18 @@ class Floor:
         if not self.green_tiles:
             self.populate_green_border()
         # now do the cross product to find the areas, but only if all four walls are in the green area
+        largest_area = 0
         areas: List[Tuple[int, Point, Point]] = []
         for i, tile in enumerate(self.red_tiles):
             for j in range(i, len(self.red_tiles)):
                 other = self.red_tiles[j]
                 area = tile.rect_area(other)
                 areas.append((area, tile, other))
-        areas = sorted(areas, key=lambda x: x[0], reverse=True)
-        for area, tile, other in areas:
-            corner_a = Point(tile.x, other.y)
-            corner_b = Point(other.x, tile.y)
+        for area, tile, other in sorted(areas, key=lambda x: x[0]):
+            if area > largest_area and self.is_rect_inside_boundary(tile, other):
+                largest_area = area
 
-            if not self.point_inside_boundary(
-                corner_a
-            ) or not self.point_inside_boundary(corner_b):
-                continue
-
-            if self.is_rect_inside_boundary(tile, other):
-                return area
-
-        return 0
+        return largest_area
 
     def populate_green_border(self):
         last_point = None
@@ -95,38 +88,30 @@ class Floor:
 
     def is_rect_inside_boundary(self, start: Point, end: Point) -> bool:
         # check the full border of the rectangle, so double backs are not counted
-        points = []
+
         min_x = min(start.x, end.x)
         max_x = max(start.x, end.x)
         min_y = min(start.y, end.y)
         max_y = max(start.y, end.y)
         # add top and bottom
+
         for y in (min_y, max_y):
+            self.scan_row(y)
             for x in range(min_x, max_x + 1):
-                points.append(Point(x, y))
+                if not any((True for lower, upper in self.polygon_x_ranges_by_y[y] if lower <= x <= upper)):
+                    return False
 
         # add left and right
         for x in (min_x, max_x):
             for y in range(min_y, max_y + 1):
-                points.append(Point(x, y))
+                self.scan_row(y)
+                if not any((True for lower, upper in self.polygon_x_ranges_by_y[y] if lower <= x <= upper)):
+                    return False
 
-        return all(self.point_inside_boundary(point) for point in points)
+        return True
 
+    @lru_cache(maxsize=None)
     def point_inside_boundary(self, p: Point) -> bool:
-        if p.x in self.green_tiles[p.y]:
-            return True
-
-        # quick fail for points that cannot be in the polygon
-        existing_points = sorted(self.green_tiles[p.y])
-        if (
-            not existing_points
-            or p.x < min(existing_points)
-            or p.x > max(existing_points)
-        ):
-            return False
-
-        # instead of scanning each value, define ranges in the row that are inside vs outside, then do a comparison
-
         self.scan_row(p.y)
         # scan ranges for the row
         x_ranges = self.polygon_x_ranges_by_y[p.y]
@@ -145,11 +130,12 @@ class Floor:
         if not xs:
             return
 
+        min_x = min(xs)
         is_vertical_corner = (
-            min(xs) not in self.green_tiles[row - 1]
-            or min(xs) not in self.green_tiles[row + 1]
+            min_x not in self.green_tiles[row - 1]
+            or min_x not in self.green_tiles[row + 1]
         )
-        started_bottom_corner = min(xs) in self.green_tiles[row - 1]
+        started_bottom_corner = min_x in self.green_tiles[row - 1]
         # This is too slow, it needs to do a comparison instead of calculating all values
         last_x = None
         # a list of inside the polygon ranges, inclusive
@@ -159,6 +145,7 @@ class Floor:
         for x in sorted(set(xs)):
             if last_x is None:
                 last_x = x
+                range_start = x
                 continue
 
             # iterate on red tiles, and green tiles
@@ -173,7 +160,7 @@ class Floor:
 
                 # if we hit a red tile, that isn't a wall going up, or we have passed a blank space
                 wall_direction_check = 1 if started_bottom_corner else -1
-                if has_past_wall or (
+                if (has_past_wall and x + 1 not in self.green_tiles[row]) or (
                     x in self.red_tile_x_by_y[row]
                     and is_vertical_corner
                     and x not in self.green_tiles[row + wall_direction_check]
@@ -191,6 +178,9 @@ class Floor:
                 )
                 started_bottom_corner = x in self.green_tiles[row - 1]
             last_x = x
+
+        if range_start is not None:
+            inside_ranges.append((range_start, max(xs)))
 
         self.polygon_x_ranges_by_y[row].extend(inside_ranges)
 
