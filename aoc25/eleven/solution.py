@@ -56,45 +56,24 @@ class Network:
         self.vertices = vertices
         self.graph = graph
 
-    def find_paths(self, start: str, end: str) -> int:
-        # dfs to find all paths that lead to the out node
-        source = self.vertices.index(start)
-        dest = self.vertices.index(end)
-        paths = 0
-        stack = deque([edge.vertex for edge in list(self.graph.edges[source])])
-        while stack:
-            current = stack.popleft()
-            if current == dest:
-                paths += 1
-                continue
-
-            # We got back to self, so don't process anymore
-            if current == source:
-                continue
-
-            if self.graph.edges[current]:
-                for neighbor in self.graph.edges[current]:
-                    stack.append(neighbor.vertex)
-
-        return paths
-
     @lru_cache(maxsize=None)
-    def find_paths_recursive(self, start: str, end: str) -> int:
+    def find_paths(self, start: str, end: str) -> int:
         if start == end:
             return 1
 
         paths = 0
         if self.graph.edges[self.vertices.index(start)]:
             for neighbor in self.graph.edges[self.vertices.index(start)]:
-                paths += self.find_paths_recursive(self.vertices[neighbor.vertex], end)
+                paths += self.find_paths(self.vertices[neighbor.vertex], end)
 
         return paths
 
     def find_dac_fft_paths(self, start: str, end: str, requirements: List[str]) -> int:
+        # this is order dependent
         queue = deque([start, *requirements, end])
         paths = 1
         while queue and len(queue) > 1:
-            paths *= self.find_paths_recursive(queue.popleft(), queue[0])
+            paths *= self.find_paths(queue.popleft(), queue[0])
 
         return paths
 
