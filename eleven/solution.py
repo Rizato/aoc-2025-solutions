@@ -1,7 +1,6 @@
 import dataclasses
-import heapq
 from collections import deque
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 
 @dataclasses.dataclass
@@ -48,27 +47,27 @@ class Graph:
 
 
 class Network:
+    vertices: List[str]
     graph: Graph
-    you: int
-    out: int
 
-    def __init__(self, graph: Graph, you: int, out: int):
+    def __init__(self, vertices: List[str], graph: Graph):
+        self.vertices = vertices
         self.graph = graph
-        self.you = you
-        self.out = out
 
-    def find_paths(self) -> int:
+    def find_paths(self, source: str, dest: str) -> int:
         # dfs to find all paths that lead to the out node
+        source = self.vertices.index(source)
+        dest = self.vertices.index(dest)
         paths = 0
-        stack = deque([edge.vertex for edge in list(self.graph.edges[self.you])])
+        stack = deque([edge.vertex for edge in list(self.graph.edges[source])])
         while stack:
             current = stack.popleft()
-            if current == self.out:
+            if current == dest:
                 paths += 1
                 continue
 
             # We got back to self, so don't process anymore
-            if current == self.you:
+            if current == source:
                 continue
 
             for neighbor in self.graph.edges[current]:
@@ -104,7 +103,7 @@ class NetworkParser:
 
                 graph.add_edge(int(vertex), vertices.index(t))
 
-        return Network(graph, vertices.index("you"), vertices.index("out"))
+        return Network(vertices, graph)
 
 
 def run() -> int:
@@ -112,7 +111,7 @@ def run() -> int:
     with open("input.txt", "r") as f:
         network = NetworkParser().parse(f.read())
 
-    return network.find_paths()
+    return network.find_paths("you", "out")
 
 
 if __name__ == "__main__":
