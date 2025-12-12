@@ -1,7 +1,6 @@
 import dataclasses
 from collections import deque
 from functools import lru_cache
-from types import NoneType
 from typing import Dict, List, Optional
 
 
