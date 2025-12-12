@@ -54,10 +54,10 @@ class Network:
         self.vertices = vertices
         self.graph = graph
 
-    def find_paths(self, source: str, dest: str) -> int:
+    def find_paths(self, start: str, end: str) -> int:
         # dfs to find all paths that lead to the out node
-        source = self.vertices.index(source)
-        dest = self.vertices.index(dest)
+        source = self.vertices.index(start)
+        dest = self.vertices.index(end)
         paths = 0
         stack = deque([edge.vertex for edge in list(self.graph.edges[source])])
         while stack:
@@ -70,12 +70,28 @@ class Network:
             if current == source:
                 continue
 
-            for neighbor in self.graph.edges[current]:
-                # don't add self, which is the start
-                if neighbor.vertex != current:
-                    stack.append(neighbor.vertex)
+            if self.graph.edges[current]:
+                for neighbor in self.graph.edges[current]:
+                    # don't add self, which is the start
+                    if neighbor.vertex != current:
+                        stack.append(neighbor.vertex)
 
         return paths
+
+    def find_dac_fft_paths(self, start: str, end: str, requirements: List[str]) -> int:
+        # wait, do I just count how many paths to fft,
+        # then paths to dac, then paths to out?
+        # then multiply, but also to dac to fft to out
+
+        num_paths = 0
+        for i, requirement in enumerate(requirements):
+            paths = self.find_paths(start, requirement)
+            for j in range(i + 1, len(requirements)):
+                next_segment = self.find_paths(requirement, requirements[j])
+                last_segment = self.find_paths(requirements[j], end)
+                num_paths += paths * next_segment * last_segment
+
+        return num_paths
 
 
 class NetworkParser:
@@ -111,7 +127,7 @@ def run() -> int:
     with open("input.txt", "r") as f:
         network = NetworkParser().parse(f.read())
 
-    return network.find_paths("you", "out")
+    return network.find_dac_fft_paths("svr", "out", ["fft", "dac"])
 
 
 if __name__ == "__main__":

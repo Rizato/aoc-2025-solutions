@@ -35,4 +35,4 @@ ggg: out
 hhh: out"""
     network = parser.parse(example)
 
-    assert network.find_dac_fft_paths() == 5
+    assert network.find_dac_fft_paths("svr", "out", ["fft", "dac"]) == 2
