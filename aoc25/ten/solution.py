@@ -1,4 +1,5 @@
 import dataclasses
+import datetime
 import heapq
 from collections import deque
 from typing import List, Optional, Set, Tuple, Deque, Dict
@@ -195,7 +196,14 @@ def run() -> int:
     with open("input.txt", "r") as f:
         machines = DiagramParser().parse(f.read())
 
-    return sum(machine.find_min_button_presses_joltage() for machine in machines)
+    total = 0
+    for machine in machines:
+        start = datetime.datetime.now()
+        presses = machine.find_min_button_presses_joltage()
+        end = datetime.datetime.now()
+        print(end - start)
+        total += presses
+    return total
 
 
 if __name__ == "__main__":
