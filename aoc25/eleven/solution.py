@@ -1,5 +1,7 @@
 import dataclasses
 from collections import deque
+from functools import lru_cache
+from types import NoneType
 from typing import Dict, List, Optional
 
 
@@ -76,46 +78,23 @@ class Network:
 
         return paths
 
-    def find_dac_fft_paths(self, start: str, end: str, requirements: List[str]) -> int:
-        source = self.vertices.index(start)
-        dest = self.vertices.index(end)
-        required = [self.vertices.index(r) for r in requirements]
+    @lru_cache(maxsize=None)
+    def find_paths_recursive(self, start: str, end: str) -> int:
+        if start == end:
+            return 1
+
         paths = 0
-        stack = deque([(edge.vertex, False) for edge in list(self.graph.edges[source])])
-        found_required = [False] * len(requirements)
-        visited = set()
-        while stack:
-            current, post_order = stack.popleft()
-            if post_order:
-                visited.remove(current)
-                # remove status after processing
-                if current in required:
-                    found_required[required.index(current)] = False
-            else:
-                if current == dest:
-                    if all(found_required):
-                        paths += 1
-                    continue
+        if self.graph.edges[self.vertices.index(start)]:
+            for neighbor in self.graph.edges[self.vertices.index(start)]:
+                paths += self.find_paths_recursive(self.vertices[neighbor.vertex], end)
 
-                # We got back to self, so don't process anymore
-                if current == source:
-                    continue
+        return paths
 
-                # visiting an already visited node
-                if current in visited:
-                    continue
-
-                # mark that we hit the required mark
-                if current in required:
-                    found_required[required.index(current)] = True
-
-                # put back on the stack to post-process before neighbors
-                visited.add(current)
-                stack.appendleft((current, True))
-                if self.graph.edges[current]:
-                    for neighbor in self.graph.edges[current]:
-                        if neighbor.vertex not in visited:
-                            stack.appendleft((neighbor.vertex, False))
+    def find_dac_fft_paths(self, start: str, end: str, requirements: List[str]) -> int:
+        queue = deque([start, *requirements, end])
+        paths = 1
+        while queue and len(queue) > 1:
+            paths *= self.find_paths_recursive(queue.popleft(), queue[0])
 
         return paths
 
