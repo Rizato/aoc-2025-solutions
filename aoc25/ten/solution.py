@@ -1,6 +1,5 @@
 import dataclasses
-import datetime
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from z3 import Int, Optimize, Sum, sat
 
