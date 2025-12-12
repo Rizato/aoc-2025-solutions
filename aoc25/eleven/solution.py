@@ -72,26 +72,44 @@ class Network:
 
             if self.graph.edges[current]:
                 for neighbor in self.graph.edges[current]:
-                    # don't add self, which is the start
-                    if neighbor.vertex != current:
-                        stack.append(neighbor.vertex)
+                    stack.append(neighbor.vertex)
 
         return paths
 
     def find_dac_fft_paths(self, start: str, end: str, requirements: List[str]) -> int:
-        # wait, do I just count how many paths to fft,
-        # then paths to dac, then paths to out?
-        # then multiply, but also to dac to fft to out
+        source = self.vertices.index(start)
+        dest = self.vertices.index(end)
+        required = [self.vertices.index(r) for r in requirements]
+        paths = 0
+        stack = deque([(edge.vertex, False) for edge in list(self.graph.edges[source])])
+        found_required = [False] * len(requirements)
+        while stack:
+            current, post_order = stack.popleft()
+            if post_order:
+                # remove status after processing
+                if current in required:
+                    found_required[required.index(current)] = False
+            else:
+                if current == dest:
+                    if all(found_required):
+                        paths += 1
+                    continue
 
-        num_paths = 0
-        for i, requirement in enumerate(requirements):
-            paths = self.find_paths(start, requirement)
-            for j in range(i + 1, len(requirements)):
-                next_segment = self.find_paths(requirement, requirements[j])
-                last_segment = self.find_paths(requirements[j], end)
-                num_paths += paths * next_segment * last_segment
+                # We got back to self, so don't process anymore
+                if current == source:
+                    continue
 
-        return num_paths
+                # mark that we hit the required mark
+                if current in required:
+                    found_required[required.index(current)] = True
+
+                # put back on the stack to post-process before neighbors
+                stack.appendleft((current, True))
+                if self.graph.edges[current]:
+                    for neighbor in self.graph.edges[current]:
+                        stack.appendleft((neighbor.vertex, False))
+
+        return paths
 
 
 class NetworkParser:
