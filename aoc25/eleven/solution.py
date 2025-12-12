@@ -83,9 +83,11 @@ class Network:
         paths = 0
         stack = deque([(edge.vertex, False) for edge in list(self.graph.edges[source])])
         found_required = [False] * len(requirements)
+        visited = set()
         while stack:
             current, post_order = stack.popleft()
             if post_order:
+                visited.remove(current)
                 # remove status after processing
                 if current in required:
                     found_required[required.index(current)] = False
@@ -99,15 +101,21 @@ class Network:
                 if current == source:
                     continue
 
+                # visiting an already visited node
+                if current in visited:
+                    continue
+
                 # mark that we hit the required mark
                 if current in required:
                     found_required[required.index(current)] = True
 
                 # put back on the stack to post-process before neighbors
+                visited.add(current)
                 stack.appendleft((current, True))
                 if self.graph.edges[current]:
                     for neighbor in self.graph.edges[current]:
-                        stack.appendleft((neighbor.vertex, False))
+                        if neighbor.vertex not in visited:
+                            stack.appendleft((neighbor.vertex, False))
 
         return paths
 
