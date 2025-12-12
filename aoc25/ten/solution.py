@@ -1,8 +1,8 @@
 import dataclasses
 import datetime
-import heapq
-from collections import deque
-from typing import List, Optional, Set, Tuple, Deque, Dict
+from typing import List, Optional, Tuple
+
+from z3 import Int, Optimize, Sum, sat
 
 
 @dataclasses.dataclass
@@ -104,58 +104,61 @@ class Machine:
             self.lights.flip(m)
 
     def find_min_button_presses_joltage(self) -> int:
-        # this is more complicated as we can press each button multiple times
+        """
+        Solve using Z3 SMT solver for integer linear programming.
+
+        Problem: minimize Σxᵢ subject to Ax = b, x ≥ 0, x ∈ ℤⁿ
+        Where:
+        - A[i,j] = 1 if button j affects position i, else 0
+        - b = goal vector
+        - x = vector of button press counts
+        """
         goal = self.joltage.goal
-        initial: Tuple[int, ...] = tuple([0] * len(self.joltage.joltages))
+        num_positions = len(goal)
+        num_buttons = len(self.buttons)
+        return self._solve_with_z3(goal, num_positions, num_buttons)
 
-        # track a heap with estimated, current, and state
-        heap: List[Tuple[int, int, Tuple[int, ...]]] = [
-            (self.heuristic(initial), 0, initial)
-        ]
-        cache: Dict[Tuple[int, ...], int] = dict()
-        # Track a list to the current state
-        cache[tuple(initial)] = 0
-        while heap:
-            estimated, score, current = heapq.heappop(heap)
+    def _solve_with_z3(
+        self, goal: List[int], num_positions: int, num_buttons: int
+    ) -> int:
+        """Solve using Z3 SMT solver."""
+        # Create integer variables for button press counts
+        x = [Int(f"x_{i}") for i in range(num_buttons)]
 
-            # if our score was lowered by some other pass, we can skip
-            if current in cache and cache[current] < score:
-                continue
+        # Create optimizer
+        opt = Optimize()
 
-            for button in self.buttons:
-                updated_score = score + 1
-                # increment each i if that index is in the button
-                updated_joltage = tuple(
-                    v + 1 if i in button.values else v for i, v in enumerate(current)
-                )
+        # Constraints: x[i] >= 0 for all buttons
+        for i in range(num_buttons):
+            opt.add(x[i] >= 0)
 
-                if all(j == g for j, g in zip(updated_joltage, goal)):
-                    return updated_score
-
-                if any(
-                    updated_joltage[i] > self.joltage.goal[i]
-                    for i in range(len(updated_joltage))
-                ):
-                    continue
-
-                if (
-                    not updated_joltage in cache
-                    or cache[updated_joltage] > updated_score
-                ):
-                    cache[updated_joltage] = updated_score
-                    updated_estimate = updated_score + self.heuristic(updated_joltage)
-
-                    heapq.heappush(
-                        heap, (updated_estimate, updated_score, updated_joltage)
+        # Constraints: For each position, sum of button presses affecting it equals goal
+        for pos in range(num_positions):
+            # Sum of all buttons that affect this position
+            affecting_buttons = [
+                x[btn_idx]
+                for btn_idx, button in enumerate(self.buttons)
+                if pos in button.values
+            ]
+            if affecting_buttons:
+                opt.add(Sum(affecting_buttons) == goal[pos])
+            else:
+                # No button affects this position, so goal must be 0
+                if goal[pos] != 0:
+                    raise ValueError(
+                        f"Position {pos} requires {goal[pos]} but no button affects it"
                     )
 
-        if tuple(goal) in cache:
-            return cache[tuple(goal)]
-        raise ValueError
+        # Objective: minimize sum of all button presses
+        opt.minimize(Sum(x))
 
-    def heuristic(self, current: Tuple[int, ...]) -> int:
-        # find the min difference between any button and the goal at the same index
-        return sum([g - c for c, g in zip(current, self.joltage.goal)])
+        # Solve
+        if opt.check() == sat:
+            model = opt.model()
+            total = sum(model[x[i]].as_long() for i in range(num_buttons))
+            return total
+        else:
+            raise ValueError("No solution found")
 
 
 class DiagramParser:
@@ -199,10 +202,9 @@ def run() -> int:
     total = 0
     for machine in machines:
         start = datetime.datetime.now()
-        presses = machine.find_min_button_presses_joltage()
+        total += machine.find_min_button_presses_joltage()
         end = datetime.datetime.now()
         print(end - start)
-        total += presses
     return total
 
 
