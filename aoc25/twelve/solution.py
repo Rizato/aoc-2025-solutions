@@ -1,6 +1,6 @@
 import dataclasses
 from functools import lru_cache
-from typing import List, NamedTuple, Set
+from typing import List, NamedTuple, Tuple
 
 
 class Point(NamedTuple):
@@ -18,7 +18,7 @@ class Point(NamedTuple):
 
 @dataclasses.dataclass(frozen=True)
 class Present:
-    points: Set[Point]
+    points: Tuple[Point, ...]
 
     @property
     def size(self) -> int:
@@ -30,12 +30,12 @@ class Present:
 
     def offset(self, offset: Point) -> "Present":
         """Given some offset, compute all the new points and return"""
-        return Present({p.add(offset) for p in self.points})
+        return Present(tuple(p.add(offset) for p in self.points))
 
     def rotate(self, with_offset: bool = False) -> "Present":
         """rotates the present 90 degrees clockwise"""
         # negate the y position and swap
-        rotated = Present({Point(-p.y, p.x) for p in self.points})
+        rotated = Present(tuple(Point(-p.y, p.x) for p in self.points))
         if not with_offset:
             return rotated
 
@@ -47,13 +47,14 @@ class Present:
         offset = Point(offset_x, offset_y)
         return rotated.offset(offset)
 
-    def all_rotations(self) -> List["Present"]:
+    @lru_cache(maxsize=None)
+    def all_rotations(self) -> Tuple["Present", ...]:
         rotations = []
         current = self
         for _ in range(3):
             rotations.append(current)
             current = current.rotate(True)
-        return rotations
+        return tuple(rotations)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,35 +68,55 @@ class Region:
         return self.width * self.height
 
     def can_fit(self, presents: List[Present]) -> bool:
-
+        # this solution is O(n * m * k), where n is the number of shapes (*4 for rotations) * area of the region * total number of shapes to match
         # first pass, just count if there are enough tiles to literally fit everything
-        consumed = 0
-        for i, shape in enumerate(presents):
-            # consume size * number of tiles required
-            consumed += shape.size * self.num_required_presents[i]
-        if consumed > self.area:
+        @lru_cache(maxsize=None)
+        def enough_tiles(required_presents: Tuple[int, ...], available: int) -> bool:
+            consumed = sum(
+                presents[present].size * num_required
+                for present, num_required in enumerate(required_presents)
+                if num_required > 0
+            )
+            return consumed <= available
+
+        if not enough_tiles(tuple(self.num_required_presents), self.area):
             return False
 
         # do dfs brute force
         def fit_present(
-            required_presents: List[int], available_points: Set[Point], index: int
+            required_presents: List[int], available_points: List[Point], index: int
         ) -> bool:
-            present = presents[index]
             # check if there are even enough points left to fit the shape
-            if len(available_points) < present.size:
+            present = presents[index]
+            if len(available_points) < present.size or not enough_tiles(
+                tuple(required_presents), len(available_points)
+            ):
                 return False
 
-            # for each rotation of the shape
-            for rotation in present.all_rotations():
-                # for each point, check if all the points required by the offset shape are still available
-                for offset in available_points:
+            # calculate this once per test, it just tells us the next present to test based on shape size
+            next_required = required_presents.copy()
+            next_required[index] -= 1
+            next_present = None
+            if sum(next_required) > 0:
+                # sort largest to smallest
+                sorted_required = sorted(
+                    enumerate(next_required),
+                    key=lambda p: presents[p[0]].size,
+                    reverse=True,
+                )
+                next_present = [
+                    i for i, requirement in sorted_required if requirement > 0
+                ][0]
+            # can_check gives us the excess, if there is 0 excess we could still fit, so check for one
+            can_check = len(available_points) - present.size
+            for offset in available_points[: can_check + 1]:
+                # for each rotation of the shape
+                for rotation in present.all_rotations():
                     offset_preset = rotation.offset(offset)
                     # if we fit, continue down the stack if there are more to fit
                     if all(point in available_points for point in offset_preset.points):
-                        next_required = required_presents.copy()
-                        next_required[index] -= 1
                         # if there are no more presents to fit, we can return true
-                        if sum(next_required) == 0:
+                        if not next_present:
                             return True
 
                         next_available_points = available_points.copy()
@@ -103,25 +124,25 @@ class Region:
                         for point in offset_preset.points:
                             next_available_points.remove(point)
 
-                        # otherwise, continue down the list. continue to go down the list, or return true if required_presents is empty
-                        for i, num_left in enumerate(next_required):
-                            if num_left == 0:
-                                continue
-                            # update required, update available, get new present
-                            if fit_present(next_required, next_available_points, i):
-                                return True
+                        # test the largest present remaining
+                        if next_present and fit_present(
+                            next_required, next_available_points, next_present
+                        ):
+                            return True
 
             # if we didn't find a solution, return false
             return False
 
         # call the function with each of the starting shapes
-        point_set = {Point(x, y) for x in range(self.width) for y in range(self.height)}
+        points = [Point(x, y) for x in range(self.width) for y in range(self.height)]
         # act on each as a starting point in the dfs
-        for i, required in enumerate(self.num_required_presents):
+        for i, required in sorted(
+            enumerate(self.num_required_presents),
+            key=lambda p: presents[p[0]].size,
+            reverse=True,
+        ):
             if required > 0:
-                if fit_present(self.num_required_presents, point_set, i):
-                    return True
-
+                return fit_present(self.num_required_presents, points, i)
         return False
 
 
@@ -176,13 +197,13 @@ class PresentParser:
         if not present.strip():
             raise ValueError("empty present")
 
-        points = set()
+        points = list()
         for y, line in enumerate(present.splitlines()[1:]):
             for x, character in enumerate(line):
                 if character == "#":
-                    points.add(Point(x, y))
+                    points.append(Point(x, y))
 
-        return Present(points)
+        return Present(tuple(points))
 
     @staticmethod
     def parse_region(line: str) -> Region:
