@@ -1,4 +1,4 @@
-from eleven.solution import NetworkParser
+from aoc25.eleven.solution import NetworkParser
 
 
 def test_part_one_example():
