@@ -199,13 +199,7 @@ def run() -> int:
     with open("input.txt", "r") as f:
         machines = DiagramParser().parse(f.read())
 
-    total = 0
-    for machine in machines:
-        start = datetime.datetime.now()
-        total += machine.find_min_button_presses_joltage()
-        end = datetime.datetime.now()
-        print(end - start)
-    return total
+    return sum(machine.find_min_button_presses_joltage() for machine in machines)
 
 
 if __name__ == "__main__":
